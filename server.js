@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import axios from "axios";
 
 dotenv.config();
 const app = express();
@@ -10,6 +11,77 @@ app.use(express.json());
 
 // Init Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// Function to search for images using Google Custom Search API
+async function searchImages(query, location) {
+  try {
+    const searchQuery = `${query} ${location}`;
+    const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
+      params: {
+        key: process.env.GOOGLE_API_KEY,
+        cx: process.env.GOOGLE_CX, // Custom Search Engine ID
+        q: searchQuery,
+        searchType: 'image',
+        num: 1, // Get only the first image
+        imgSize: 'large',
+        imgType: 'photo',
+        safe: 'active'
+      }
+    });
+
+    if (response.data.items && response.data.items.length > 0) {
+      return response.data.items[0].link;
+    }
+    
+    // Fallback to Unsplash if no results
+    return `https://source.unsplash.com/800x600/?${encodeURIComponent(searchQuery)}`;
+  } catch (error) {
+    console.error('Error searching for images:', error);
+    // Fallback to Unsplash
+    return `https://source.unsplash.com/800x600/?${encodeURIComponent(query)},${encodeURIComponent(location)}`;
+  }
+}
+
+// Function to get images for activities
+async function getActivityImages(activities, location) {
+  const updatedActivities = [];
+  
+  for (const activity of activities) {
+    try {
+      // Extract key terms from the activity description for better search
+      const searchTerms = extractSearchTerms(activity.description);
+      const imageUrl = await searchImages(searchTerms, location);
+      
+      updatedActivities.push({
+        ...activity,
+        image: imageUrl
+      });
+      
+      // Add small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      console.error('Error getting image for activity:', error);
+      updatedActivities.push({
+        ...activity,
+        image: `https://source.unsplash.com/800x600/?${location.replace(/\s+/g, ',')},travel`
+      });
+    }
+  }
+  
+  return updatedActivities;
+}
+
+// Helper function to extract meaningful search terms
+function extractSearchTerms(description) {
+  // Simple extraction of key terms (you can make this more sophisticated)
+  const commonWords = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'visit', 'explore', 'see', 'go'];
+  const words = description.toLowerCase().split(/\W+/);
+  const meaningfulWords = words.filter(word => 
+    word.length > 3 && !commonWords.includes(word)
+  ).slice(0, 3); // Take first 3 meaningful words
+  
+  return meaningfulWords.join(' ') || 'tourist attraction';
+}
 
 app.post("/api/tripform/itinerary", async (req, res) => {
   try {
@@ -27,37 +99,21 @@ app.post("/api/tripform/itinerary", async (req, res) => {
             "title": "Day 1 Title",
             "activities": [
               {
-                "image": "https://example.com/direct-image-url.jpg",
+                "image": "placeholder",
                 "cost": "₹500-800 per person",
-                "description": "Detailed description of what to do, where to go, timings, and why it's worth visiting"
+                "description": "Detailed description of what to do, where to go, timings, and why it's worth visiting. Include specific place names and attractions."
               }
             ]
           }
         ]
       }
       
-      CRITICAL REQUIREMENTS FOR IMAGES:
-      1. The "image" field MUST contain actual, working image URLs from the internet (not search terms)
-      2. Find real image URLs that show the specific places, landmarks, or activities in ${location}
-      3. Use high-quality images that are publicly accessible
-      4. Ensure URLs are from reliable sources like Wikipedia, tourism sites, or public image repositories
-      5. Each image should be directly related to the specific activity or place mentioned
-      6. Use different images for different activities - don't repeat URLs
-      
-      Examples of good image URLs:
-      - https://upload.wikimedia.org/wikipedia/commons/thumb/...
-      - https://cdn.pixabay.com/photo/...
-      - https://images.pexels.com/photos/...
-      - Tourism board official images
-      - Government tourism site images
-      
-      For each day, include 2-4 activities. Make sure each activity has a unique, working image URL.
+      For each day, include 2-4 activities. Make sure each activity description includes specific place names, attractions, or activities that can be searched for images.
       Keep costs realistic for the given budget range. Include specific details like timings, addresses, and tips.
-      
-      DO NOT use placeholder URLs or search terms - only provide real, working image URLs that show ${location} attractions.
+      Don't add double quotes within the text in json
+      The image field will be populated automatically with actual images, so just use "placeholder" for now.
     `;
-
-    // Use Gemini model
+    
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const result = await model.generateContent(prompt);
 
@@ -70,34 +126,28 @@ app.post("/api/tripform/itinerary", async (req, res) => {
     try {
       const itinerary = JSON.parse(itineraryText);
       
-      // Optional: Validate that images are actual URLs
-      const validateAndFixImages = (itinerary) => {
-        for (let dayData of itinerary.days) {
-          for (let activity of dayData.activities) {
-            // Check if image field contains a valid URL
-            if (!activity.image || !activity.image.startsWith('http')) {
-              // Fallback to a working placeholder if LLM didn't provide proper URL
-              activity.image = `https://source.unsplash.com/600x400/?${location.replace(/\s+/g, ',')},travel`;
-            }
-          }
-        }
-        return itinerary;
+      // Get actual images for each activity
+      const updatedItinerary = {
+        ...itinerary,
+        days: await Promise.all(
+          itinerary.days.map(async (dayData) => ({
+            ...dayData,
+            activities: await getActivityImages(dayData.activities, location)
+          }))
+        )
       };
       
-      const validatedItinerary = validateAndFixImages(itinerary);
-      res.json(validatedItinerary);
+      res.json(updatedItinerary);
       
     } catch (parseError) {
       console.error("JSON Parse Error:", parseError);
       console.log("Raw response:", itineraryText);
-      
-      // Fallback response if JSON parsing fails
       res.json({
         days: [{
           day: 1,
           title: "Day 1 - Explore " + location,
           activities: [{
-            image: `https://source.unsplash.com/600x400/?${location.replace(/\s+/g, ',')},travel`,
+            image: `https://source.unsplash.com/800x600/?${location.replace(/\s+/g, ',')},travel`,
             cost: `₹${budgetMin}-${budgetMax} per person`,
             description: "We encountered an issue parsing the itinerary. Please try again."
           }]
@@ -110,18 +160,33 @@ app.post("/api/tripform/itinerary", async (req, res) => {
   }
 });
 
-// Optional: Add an endpoint to test if image URLs are working
+// Endpoint to test individual image searches
+app.post("/api/search-image", async (req, res) => {
+  try {
+    const { query, location } = req.body;
+    const imageUrl = await searchImages(query, location);
+    res.json({ imageUrl });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Enhanced endpoint to test if image URLs are working
 app.post("/api/test-images", async (req, res) => {
   const { imageUrls } = req.body;
   
   const testResults = await Promise.all(
     imageUrls.map(async (url) => {
       try {
-        const response = await fetch(url, { method: 'HEAD' });
+        const response = await fetch(url, { 
+          method: 'HEAD',
+          timeout: 5000
+        });
         return {
           url: url,
           working: response.ok,
-          status: response.status
+          status: response.status,
+          contentType: response.headers.get('content-type')
         };
       } catch (error) {
         return {
