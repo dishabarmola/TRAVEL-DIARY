@@ -5,8 +5,9 @@ import logo from '../assets/logo.png';
 const Navbar = () => {
     return (
         <div className="flex items-center justify-between px-8 py-4 bg-gradient-to-r from-pink-300 via-rose-300 to-pink-400 text-white shadow-md">
-            <div className="logo">
+            <div className="logo flex justify-start items-center gap-3">
                 <img src={logo} alt="Logo" className="h-10 rounded-full shadow-lg" />
+                <h1 className="text-2xl font-bold">Travel Diary</h1>
             </div>
             <div className="nav-links">
                 <ul className="flex gap-6 list-none m-0 p-0">
