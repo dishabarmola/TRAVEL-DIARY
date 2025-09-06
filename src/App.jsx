@@ -6,7 +6,7 @@ import Itinerybutton from './components/Itinerybutton'
 import About from './components/About'
 import Contact from './components/Contact'
 import Tripform from './components/Tripform';
-import ItineraryPage from './components/ItineraryPage'; // 👈 import new page
+import ItineraryPage from './components/ItineraryPage'; 
 
 const App = () => {
   return (
@@ -35,7 +35,7 @@ const App = () => {
         <Route path="/tripform" element={<Tripform />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path="/tripform/itinerary" element={<ItineraryPage />} /> {/* 👈 new route */}
+        <Route path="/tripform/itinerary" element={<ItineraryPage />} /> 
       </Routes>
     </Router>
   )

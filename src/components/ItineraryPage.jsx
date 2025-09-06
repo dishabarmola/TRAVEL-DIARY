@@ -59,7 +59,6 @@ const ItineraryPage = () => {
                     key={activityIndex}
                     className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300"
                   >
-                    {/* Activity Image */}
                     <div className="h-48 w-full bg-gray-200 overflow-hidden relative">
                       {isLoading && (
                         <div className="absolute inset-0 flex items-center justify-center bg-gray-200">

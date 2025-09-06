@@ -56,7 +56,6 @@ const Tripform = () => {
         className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg flex flex-col gap-6"
         onSubmit={handleSubmit}
       >
-        {/* Number of Days */}
         <label className="flex flex-col font-semibold text-gray-700">
           Number of Days
           <select
@@ -74,8 +73,6 @@ const Tripform = () => {
             ))}
           </select>
         </label>
-
-        {/* Location */}
         <label className="flex flex-col font-semibold text-gray-700">
           Location
           <input
@@ -88,8 +85,6 @@ const Tripform = () => {
             required
           />
         </label>
-
-        {/* Number of People */}
         <label className="flex flex-col font-semibold text-gray-700">
           Number of People
           <select
@@ -107,8 +102,6 @@ const Tripform = () => {
             ))}
           </select>
         </label>
-
-        {/* Budget */}
         <div className="flex flex-col font-semibold text-gray-700">
           Budget (₹)
           <div className="flex gap-4 mt-2">
